@@ -4,21 +4,24 @@
   "private": true,
   "dependencies": {
     "@craco/craco": "^6.0.0",
+    "@hot-loader/react-dom": "^17.0.1",
     "@testing-library/jest-dom": "^5.11.8",
     "@testing-library/react": "^11.2.3",
     "@testing-library/user-event": "^12.6.0",
     "cesium": "^1.77.0",
     "craco-cesium": "^1.2.0",
+    "craco-plugin-react-hot-reload": "^0.1.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-hot-loader": "^4.13.0",
     "react-scripts": "4.0.1",
     "resium": "^1.13.1",
     "web-vitals": "^0.2.4"
   },
   "scripts": {
-    "start": "craco start", // react-scripts -> craco
-    "build": "craco build", // react-scripts -> craco
-    "test": "craco test",   // react-scripts -> craco
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

@@ -1,25 +1,22 @@
-import logo from './logo.svg';
-import './App.css';
+import React from 'react';
+import { hot } from 'react-hot-loader/root';
+import { Viewer, Entity, PointGraphics, EntityDescription } from 'resium';
+import { Cartesian3 } from 'cesium';
 
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    return (
+        <Viewer full>
+            <Entity
+                name="BoxGraphics"
+                position={Cartesian3.fromDegrees(0, 0, 0)}
+            >
+                <PointGraphics pixelSize={20} />
+                <EntityDescription>
+                    <h1>Hello</h1>
+                </EntityDescription>
+            </Entity>
+        </Viewer>
+    );
 }
 
-export default App;
+export default hot(App);
