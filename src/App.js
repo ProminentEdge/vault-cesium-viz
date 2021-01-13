@@ -32,6 +32,7 @@ dayjs.extend(utc);
 
 const hits = require('./hits.json');
 const csvData = require('./test-sat.csv');
+const shipCSV = require('./AISTest.csv');
 
 
 class App extends Component {
@@ -39,6 +40,9 @@ class App extends Component {
         super(props);
         this.ref = createRef();
         this.coloredSats = [];
+        this.hitSource = null;
+        this.satelliteSource = null;
+        this.shipSource = null;
     }
 
     componentDidMount() {
@@ -49,7 +53,6 @@ class App extends Component {
             let minDate = null;
             let maxDate = null;
             for (const csvRow of csvData) {
-                const u = dayjs.utc(csvRow['dt']);
                 const d = new Date(csvRow['dt']);
                 if (minDate == null) {
                     minDate = d.getTime();
@@ -73,6 +76,76 @@ class App extends Component {
                 }
             }
 
+            const shipData = {};
+            for (const shipRow of shipCSV) {
+                shipRow.time = dayjs(shipRow.basedatetime).toDate();
+                if (shipData.hasOwnProperty(shipRow.imo)) {
+                    const shipObj = shipData[shipRow.imo];
+                    shipObj.points.push(shipRow);
+                } else {
+                    shipData[shipRow.imo] = {
+                        id: shipRow.imo,
+                        name: shipRow.vesselname,
+                        points: [],
+                    };
+                }
+            }
+            let shipMinDate = null;
+            let shipMaxDate = null;
+            this.shipSource = new CustomDataSource('ships');
+            this.satelliteSource = new CustomDataSource('satellites');
+            for (const key of Object.keys(shipData)) {
+                const ship = shipData[key];
+                if (ship.points.length < 2) {
+                    //Ignore ships that don't have point data.
+                    continue;
+                }
+                ship.points = ship.points.sort((a,b) => a.time - b.time);
+                const sMin = ship.points[0].time.getTime();
+                const sMax = ship.points[ship.points.length - 1].time.getTime();
+                if (shipMinDate == null || sMin < shipMinDate) {
+                    shipMinDate = sMin;
+                }
+                if (shipMaxDate == null || sMax > shipMaxDate) {
+                    shipMaxDate = sMax;
+                }
+                const shipSamplePoints = ship.points.map((point) => {
+                    return {
+                        position: Cartesian3.fromDegrees(Number(point.lon), Number(point.lat)),
+                        time: JulianDate.fromDate(point.time),
+                    };
+                });
+                const sampledPos = new SampledPositionProperty();
+                for (const samplePoint of shipSamplePoints) {
+                    sampledPos.addSample(samplePoint.time, samplePoint.position );
+                }
+                const shipInterval = new TimeInterval({
+                    start: JulianDate.fromDate(new Date(sMin)),
+                    stop: JulianDate.fromDate(new Date(sMax)),
+                    isStartIncluded: true,
+                    isStopIncluded: true,
+                });
+                const shipAvailability = new TimeIntervalCollection([shipInterval]);
+                const shipEntity = new Entity({
+                    availability: shipAvailability,
+                    id: `${ship.name}(${ship.id})`,
+                    position: sampledPos,
+                    point: new PointGraphics({
+                        color: Color.ALICEBLUE,
+                        pixelSize: 12,
+                    }),
+                    path: new PathGraphics({
+                        material: Color.BEIGE,
+                        width: 3,
+                        leadTime: 3600,
+                        trailTime: 3600,
+                    })
+                });
+                this.shipSource.entities.add(shipEntity);
+            }
+            this.viewer.dataSources.add(this.shipSource);
+
+
             const shipHits = {};
             for (const hit of hits.items) {
                 hit.time = dayjs(hit.basedatetime).toDate();
@@ -87,6 +160,7 @@ class App extends Component {
                 }
             }
 
+            this.hitSource = new CustomDataSource('validationSource');
             const shipDatasource = new CustomDataSource('ships');
             for (const shipKey of Object.keys(shipHits)) {
                 const shipObj = shipHits[shipKey];
@@ -116,9 +190,9 @@ class App extends Component {
                 }
             }
             this.viewer.dataSources.add(shipDatasource);
+            this.viewer.dataSources.add(this.hitSource);
 
             const eventHandler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
-
             eventHandler.setInputAction((event) => {
                 const pick = this.viewer.scene.pick(event.position);
                 if (defined(pick) && defined(pick.id)) {
@@ -126,9 +200,12 @@ class App extends Component {
                     if (pickedEntity.id.startsWith('shipPoint')) {
                         //Move viewer time to this point in time to view satellite
                         this.viewer.clock.currentTime = JulianDate.fromDate(pickedEntity.properties.time.getValue());
+                        if (this.viewer.clock.shouldAnimate) {
+                            this.viewer.clock.shouldAnimate = false;
+                        }
 
-                        if (pickedEntity.properties.hit.getValue()) {
-                            const satEnt = this.viewer.entities.getById(`Satellite: ${pickedEntity.properties.satellite.getValue()}`);
+                        if (pickedEntity.properties.hit.getValue() || pickedEntity.properties.hit.getValue() === false) {
+                            const satEnt = this.satelliteSource.entities.getById(`Satellite: ${pickedEntity.properties.satellite.getValue()}`);
                             if (defined(satEnt)) {
                                 satEnt.point.color = Color.BLUE;
                                 if (this.coloredSats.findIndex((value) => value === satEnt.id) === -1) {
@@ -142,11 +219,11 @@ class App extends Component {
                                         pixelSize: 12,
                                     }),
                                 });
-                                this.viewer.entities.add(satPoint);
+                                this.hitSource.entities.add(satPoint);
+                                this.viewer.flyTo([pickedEntity, satEnt], {
+                                    duration: 3,
+                                });
                             }
-                        } else {
-                            //TODO: Does this make sense here?
-                            this.revertSatelliteColors();
                         }
                     }
                 } else {
@@ -158,7 +235,7 @@ class App extends Component {
             const clock = this.viewer.clock;
             clock.startTime = JulianDate.fromDate(new Date(minDate));
             clock.stopTime = JulianDate.fromDate(new Date(maxDate));
-            clock.currentTime = JulianDate.fromDate(new Date(minDate));
+            clock.currentTime = JulianDate.fromDate(new Date(shipMinDate));
             clock.clockRange = ClockRange.LOOP_STOP;
             for (const key of Object.keys(satMap)) {
                 const satObj = satMap[key];
@@ -279,8 +356,9 @@ class App extends Component {
                     }),
                     position: tleProp
                 });
-                this.viewer.entities.add(satEnt);
+                this.satelliteSource.entities.add(satEnt);
             }
+            this.viewer.dataSources.add(this.satelliteSource);
 
         }
     }
@@ -289,13 +367,14 @@ class App extends Component {
         if (this.coloredSats.length > 0) {
             //TODO: Get cesium entities and revert back to default color
             for (const satName of this.coloredSats) {
-                const satEnt = this.viewer.entities.getById(`Satellite: ${satName}`);
+                const satEnt = this.satelliteSource.entities.getById(satName);
                 if (defined(satEnt)) {
                     satEnt.point.color = Color.YELLOW;
                 }
             }
-            this.coloredSats.clear();
+            this.coloredSats = [];
         }
+        this.hitSource.entities.removeAll();
     }
 
     getSatellitePosition(time, satRec) {
