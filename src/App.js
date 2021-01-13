@@ -28,7 +28,11 @@ import {
 import { sgp4, twoline2satrec, gstime, propagate, eciToGeodetic, eciToEcf } from 'satellite.js';
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone')
 dayjs.extend(utc);
+dayjs.extend(timezone);
+
+dayjs.tz.setDefault('America/New_York');
 
 const hits = require('./hits.json');
 const csvData = require('./test-sat.csv');
@@ -53,7 +57,7 @@ class App extends Component {
             let minDate = null;
             let maxDate = null;
             for (const csvRow of csvData) {
-                const d = new Date(csvRow['dt']);
+                const d = dayjs(csvRow['dt'], 'America/New_York').toDate();
                 if (minDate == null) {
                     minDate = d.getTime();
                     maxDate = d.getTime();
@@ -78,7 +82,7 @@ class App extends Component {
 
             const shipData = {};
             for (const shipRow of shipCSV) {
-                shipRow.time = dayjs(shipRow.basedatetime).toDate();
+                shipRow.time = dayjs(shipRow.basedatetime, 'America/New_York').toDate();
                 if (shipData.hasOwnProperty(shipRow.imo)) {
                     const shipObj = shipData[shipRow.imo];
                     shipObj.points.push(shipRow);
@@ -120,8 +124,8 @@ class App extends Component {
                     sampledPos.addSample(samplePoint.time, samplePoint.position );
                 }
                 const shipInterval = new TimeInterval({
-                    start: JulianDate.fromDate(new Date(sMin)),
-                    stop: JulianDate.fromDate(new Date(sMax)),
+                    start: JulianDate.fromDate(dayjs(sMin, 'America/New_York').toDate()),
+                    stop: JulianDate.fromDate(dayjs(sMax, 'America/New_York').toDate()),
                     isStartIncluded: true,
                     isStopIncluded: true,
                 });
@@ -148,7 +152,7 @@ class App extends Component {
 
             const shipHits = {};
             for (const hit of hits.items) {
-                hit.time = dayjs(hit.basedatetime).toDate();
+                hit.time = dayjs(hit.basedatetime, 'America/New_York').toDate();
                 if (shipHits.hasOwnProperty(hit.imo)) {
                     const satObj = shipHits[hit['imo']];
                     satObj.points.push(hit);
@@ -233,9 +237,9 @@ class App extends Component {
 
 
             const clock = this.viewer.clock;
-            clock.startTime = JulianDate.fromDate(new Date(minDate));
-            clock.stopTime = JulianDate.fromDate(new Date(maxDate));
-            clock.currentTime = JulianDate.fromDate(new Date(shipMinDate));
+            clock.startTime = JulianDate.fromDate(dayjs(minDate, 'America/New_York').toDate());
+            clock.stopTime = JulianDate.fromDate(dayjs(maxDate, 'America/New_York').toDate());
+            clock.currentTime = JulianDate.fromDate(dayjs(shipMinDate, 'America/New_York').toDate());
             clock.clockRange = ClockRange.LOOP_STOP;
             for (const key of Object.keys(satMap)) {
                 const satObj = satMap[key];
