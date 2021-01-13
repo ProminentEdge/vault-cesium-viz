@@ -19,9 +19,17 @@ import {
     CallbackProperty,
     PropertyBag,
     ClockRange,
-    ConstantPositionProperty
+    ConstantPositionProperty,
+    CustomDataSource,
+    ScreenSpaceEventHandler,
+    ScreenSpaceEventType,
+    defined
 } from 'cesium'
 import { sgp4, twoline2satrec, gstime, propagate, eciToGeodetic, eciToEcf } from 'satellite.js';
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+dayjs.extend(utc);
+
 const hits = require('./hits.json');
 const csvData = require('./test-sat.csv');
 
@@ -30,6 +38,7 @@ class App extends Component {
     constructor(props) {
         super(props);
         this.ref = createRef();
+        this.coloredSats = [];
     }
 
     componentDidMount() {
@@ -40,6 +49,7 @@ class App extends Component {
             let minDate = null;
             let maxDate = null;
             for (const csvRow of csvData) {
+                const u = dayjs.utc(csvRow['dt']);
                 const d = new Date(csvRow['dt']);
                 if (minDate == null) {
                     minDate = d.getTime();
@@ -65,7 +75,7 @@ class App extends Component {
 
             const shipHits = {};
             for (const hit of hits.items) {
-                hit.time = new Date(hit.millis70);
+                hit.time = dayjs(hit.basedatetime).toDate();
                 if (shipHits.hasOwnProperty(hit.imo)) {
                     const satObj = shipHits[hit['imo']];
                     satObj.points.push(hit);
@@ -76,6 +86,74 @@ class App extends Component {
                     }
                 }
             }
+
+            const shipDatasource = new CustomDataSource('ships');
+            for (const shipKey of Object.keys(shipHits)) {
+                const shipObj = shipHits[shipKey];
+
+                shipObj.points = shipObj.points.sort((a,b) => a.time - b.time);
+
+                //TODO: For each sorted ship points generate hit/hole intervals.
+                //TODO: Create entity collection for each ship?
+                let index = 0;
+                for (const point of shipObj.points) {
+                    const pointProps = new PropertyBag();
+                    pointProps.addProperty('time', point.time);
+                    pointProps.addProperty('satellite', point.satName);
+                    pointProps.addProperty('hit', point.isHit === 1);
+                    pointProps.addProperty('satCoords', [point.satLong, point.satLat]);
+                    const shipPoint = new Entity({
+                        id: `shipPoint${index}`,
+                        position: new ConstantPositionProperty(Cartesian3.fromDegrees(point.lon, point.lat)),
+                        point: new PointGraphics({
+                            color: (point.isHit === 1) ? Color.BLUE : Color.RED,
+                            pixelSize: 10,
+                        }),
+                        properties: pointProps,
+                    });
+                    shipDatasource.entities.add(shipPoint);
+                    index += 1;
+                }
+            }
+            this.viewer.dataSources.add(shipDatasource);
+
+            const eventHandler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
+
+            eventHandler.setInputAction((event) => {
+                const pick = this.viewer.scene.pick(event.position);
+                if (defined(pick) && defined(pick.id)) {
+                    const pickedEntity = pick.id;
+                    if (pickedEntity.id.startsWith('shipPoint')) {
+                        //Move viewer time to this point in time to view satellite
+                        this.viewer.clock.currentTime = JulianDate.fromDate(pickedEntity.properties.time.getValue());
+
+                        if (pickedEntity.properties.hit.getValue()) {
+                            const satEnt = this.viewer.entities.getById(`Satellite: ${pickedEntity.properties.satellite.getValue()}`);
+                            if (defined(satEnt)) {
+                                satEnt.point.color = Color.BLUE;
+                                if (this.coloredSats.findIndex((value) => value === satEnt.id) === -1) {
+                                    this.coloredSats.push(satEnt.id);
+                                }
+                                const satCoords = pickedEntity.properties.satCoords.getValue();
+                                const satPoint = new Entity({
+                                    position: new ConstantPositionProperty(Cartesian3.fromDegrees(satCoords[0], satCoords[1])),
+                                    point: new PointGraphics({
+                                        color: Color.GREEN,
+                                        pixelSize: 12,
+                                    }),
+                                });
+                                this.viewer.entities.add(satPoint);
+                            }
+                        } else {
+                            //TODO: Does this make sense here?
+                            this.revertSatelliteColors();
+                        }
+                    }
+                } else {
+                    this.revertSatelliteColors();
+                }
+            }, ScreenSpaceEventType.LEFT_CLICK)
+
 
             const clock = this.viewer.clock;
             clock.startTime = JulianDate.fromDate(new Date(minDate));
@@ -204,6 +282,19 @@ class App extends Component {
                 this.viewer.entities.add(satEnt);
             }
 
+        }
+    }
+
+    revertSatelliteColors() {
+        if (this.coloredSats.length > 0) {
+            //TODO: Get cesium entities and revert back to default color
+            for (const satName of this.coloredSats) {
+                const satEnt = this.viewer.entities.getById(`Satellite: ${satName}`);
+                if (defined(satEnt)) {
+                    satEnt.point.color = Color.YELLOW;
+                }
+            }
+            this.coloredSats.clear();
         }
     }
 

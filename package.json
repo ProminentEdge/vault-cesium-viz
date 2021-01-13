@@ -12,6 +12,7 @@
     "cesium": "^1.77.0",
     "craco-cesium": "^1.2.0",
     "craco-plugin-react-hot-reload": "^0.1.0",
+    "dayjs": "^1.10.3",
     "papaparse": "^5.3.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
