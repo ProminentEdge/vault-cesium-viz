@@ -57,7 +57,7 @@ class App extends Component {
             let minDate = null;
             let maxDate = null;
             for (const csvRow of csvData) {
-                const d = dayjs(csvRow['dt'], 'America/New_York').toDate();
+                const d = dayjs(csvRow['dt'], 'YYYY-MM-DD HH:mm:ss', 'America/New_York').toDate();
                 if (minDate == null) {
                     minDate = d.getTime();
                     maxDate = d.getTime();
@@ -82,7 +82,7 @@ class App extends Component {
 
             const shipData = {};
             for (const shipRow of shipCSV) {
-                shipRow.time = dayjs(shipRow.basedatetime, 'America/New_York').toDate();
+                shipRow.time = dayjs(shipRow.basedatetime, 'YYYY-MM-DDTHH:mm:ss', 'America/New_York').toDate();
                 if (shipData.hasOwnProperty(shipRow.imo)) {
                     const shipObj = shipData[shipRow.imo];
                     shipObj.points.push(shipRow);
@@ -124,8 +124,8 @@ class App extends Component {
                     sampledPos.addSample(samplePoint.time, samplePoint.position );
                 }
                 const shipInterval = new TimeInterval({
-                    start: JulianDate.fromDate(dayjs(sMin, 'America/New_York').toDate()),
-                    stop: JulianDate.fromDate(dayjs(sMax, 'America/New_York').toDate()),
+                    start: JulianDate.fromDate(dayjs(sMin, 'YYYY-MM-DDTHH:mm:ss', 'America/New_York').toDate()),
+                    stop: JulianDate.fromDate(dayjs(sMax, 'YYYY-MM-DDTHH:mm:ss', 'America/New_York').toDate()),
                     isStartIncluded: true,
                     isStopIncluded: true,
                 });
@@ -152,7 +152,7 @@ class App extends Component {
 
             const shipHits = {};
             for (const hit of hits.items) {
-                hit.time = dayjs(hit.basedatetime, 'America/New_York').toDate();
+                hit.time = dayjs(hit.basedatetime, 'YYYY-MM-DDTHH:mm:ss','America/New_York').toDate();
                 if (shipHits.hasOwnProperty(hit.imo)) {
                     const satObj = shipHits[hit['imo']];
                     satObj.points.push(hit);
