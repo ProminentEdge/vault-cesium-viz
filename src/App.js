@@ -325,7 +325,7 @@ class App extends Component {
                     const tle = this.tleCollection.findDataForIntervalContainingDate(time);
                     const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
                     let posAndVel = propagate(satRec, dayjs(JulianDate.toDate(time)).tz('America/New_York').toDate());
-                    const gmst = gstime(JulianDate.toDate(time));
+                    const gmst = gstime(dayjs(JulianDate.toDate(time)).tz('America/New_York').toDate());
                     const geoPosVel = eciToGeodetic(posAndVel.position, gmst);
                     let longitude = geoPosVel.longitude,
                         latitude  = geoPosVel.latitude,
