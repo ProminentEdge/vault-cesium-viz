@@ -23,7 +23,9 @@ import {
     CustomDataSource,
     ScreenSpaceEventHandler,
     ScreenSpaceEventType,
-    defined
+    defined,
+    EllipsoidGeodesic,
+    Cartographic
 } from 'cesium'
 import { sgp4, twoline2satrec, gstime, propagate, eciToGeodetic, eciToEcf } from 'satellite.js';
 const dayjs = require('dayjs');
@@ -36,6 +38,7 @@ dayjs.tz.setDefault('America/New_York');
 
 const hits = require('./hits_new.csv');
 const csvData = require('./test-sat.csv');
+const csvData2 = require('./test-sat2.csv');
 const shipCSV = require('./AISTest.csv');
 
 
@@ -47,6 +50,7 @@ class App extends Component {
         this.hitSource = null;
         this.satelliteSource = null;
         this.shipSource = null;
+        this.lastUpdateTime = null;
     }
 
     componentDidMount() {
@@ -56,23 +60,26 @@ class App extends Component {
             const satMap = { };
             let minDate = null;
             let maxDate = null;
-            for (const csvRow of csvData) {
-                const d = dayjs(csvRow['dt'], 'YYYY-MM-DD HH:mm:ss', 'America/New_York').toDate();
-                if (minDate == null || d.getTime() < minDate) {
-                    minDate = d.getTime();
-                }
-                if (maxDate == null || d.getTime() > maxDate) {
-                    maxDate = d.getTime();
-                }
-                csvRow['dt'] = d;
-                if (satMap.hasOwnProperty(csvRow['satellite'])) {
-                    const satObj = satMap[csvRow['satellite']];
-                    satObj.tles.push(csvRow);
-                } else {
-                    satMap[csvRow['satellite']] = {
-                        satellite: csvRow.satellite,
-                        tles: [csvRow]
-                    };
+            const csvs = [csvData2];
+            for (const satData of csvs) {
+                for (const csvRow of satData) {
+                    const d = dayjs(Number(csvRow.millis70), 'YYYY-MM-DD HH:mm:ss', 'America/New_York').toDate();
+                    if (minDate == null || d.getTime() < minDate) {
+                        minDate = d.getTime();
+                    }
+                    if (maxDate == null || d.getTime() > maxDate) {
+                        maxDate = d.getTime();
+                    }
+                    csvRow['dt'] = d;
+                    if (satMap.hasOwnProperty(csvRow['satellite'])) {
+                        const satObj = satMap[csvRow['satellite']];
+                        satObj.tles.push(csvRow);
+                    } else {
+                        satMap[csvRow['satellite']] = {
+                            satellite: csvRow.satellite,
+                            tles: [csvRow]
+                        };
+                    }
                 }
             }
 
@@ -192,11 +199,29 @@ class App extends Component {
             this.viewer.dataSources.add(shipDatasource);
             this.viewer.dataSources.add(this.hitSource);
 
+            this.viewer.scene.preUpdate.addEventListener((scene, currentTime) => {
+                if (defined(this.viewer.selectedEntity) && (this.lastUpdateTime == null || JulianDate.secondsDifference(currentTime, this.lastUpdateTime) > 1)) {
+                    if (this.shipSource.entities.contains(this.viewer.selectedEntity) && this.viewer.selectedEntity.isAvailable(currentTime)) {
+                        const shipPos = Cartographic.fromCartesian(this.viewer.selectedEntity.position.getValue(currentTime));
+                        this.colorSatellitesByDistance(shipPos, currentTime);
+                        this.lastUpdateTime = currentTime;
+                    }
+                }
+            });
+
             const eventHandler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
             eventHandler.setInputAction((event) => {
                 const pick = this.viewer.scene.pick(event.position);
                 if (defined(pick) && defined(pick.id)) {
                     const pickedEntity = pick.id;
+
+                    if (this.shipSource.entities.contains(pickedEntity) && pickedEntity.isAvailable(this.viewer.clock.currentTime)) {
+                        //TODO: Picked a ship entity, get it's position and run distance calculation.
+                        const currTime = this.viewer.clock.currentTime;
+                        const shipPos = Cartographic.fromCartesian(pickedEntity.position.getValue(currTime));
+                        this.colorSatellitesByDistance(shipPos, currTime);
+                    }
+
                     if (pickedEntity.id.startsWith('shipPoint')) {
                         //Move viewer time to this point in time to view satellite
                         this.viewer.clock.currentTime = JulianDate.fromDate(pickedEntity.properties.time.getValue());
@@ -253,10 +278,11 @@ class App extends Component {
                     if (tle && nextTLE) {
                         const startTime = JulianDate.fromDate(tle.dt);
                         const endTime = JulianDate.fromDate(nextTLE['dt']);
+                        const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
                         const timeInt = new TimeInterval({
                             start: startTime,
                             stop: endTime,
-                            data: tle,
+                            data: satRec,
                             isStartIncluded: true,
                             isStopIncluded: false,
                         });
@@ -267,7 +293,6 @@ class App extends Component {
                         const secsRange = JulianDate.secondsDifference(endTime, startTime);
                         const sampleCount = 20;
                         const sampleInt = secsRange / sampleCount;
-                        const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
                         const cartPos = this.getSatellitePosition(tle.dt, satRec);
                         sampledIntervalPos.addSample(startTime, cartPos);
                         for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
@@ -285,13 +310,12 @@ class App extends Component {
                         pInts.push(positionSampleInterval);
                     } /*else if (tle) {
                         const startTime = JulianDate.fromDate(tle.dt);
-                        let d = new Date(tle.dt.getTime());
-                        d.setDate(d.getDate() + 7);
-                        const endTime = JulianDate.fromDate(d);
+                        const endTime = JulianDate.now();
+                        const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
                         const timeInt = new TimeInterval({
                             start: startTime,
                             stop: endTime,
-                            data: tle,
+                            data: satRec,
                             isStartIncluded: true,
                             isStopIncluded: false,
                         });
@@ -301,7 +325,6 @@ class App extends Component {
                         const secsRange = JulianDate.secondsDifference(endTime, startTime);
                         const sampleCount = 20;
                         const sampleInt = secsRange / sampleCount;
-                        const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
                         const cartPos = this.getSatellitePosition(tle.dt, satRec);
                         sampledIntervalPos.addSample(startTime, cartPos);
                         for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
@@ -322,8 +345,7 @@ class App extends Component {
                 const propBag = new PropertyBag();
                 propBag.addProperty('positionCollection', pInts);
                 const tleProp = new CallbackProperty(function (time, result) {
-                    const tle = this.tleCollection.findDataForIntervalContainingDate(time);
-                    const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
+                    const satRec = this.tleCollection.findDataForIntervalContainingDate(time);
                     let posAndVel = propagate(satRec, dayjs(JulianDate.toDate(time)).tz('America/New_York').toDate());
                     const gmst = gstime(dayjs(JulianDate.toDate(time)).tz('America/New_York').toDate());
                     const geoPosVel = eciToGeodetic(posAndVel.position, gmst);
@@ -360,6 +382,22 @@ class App extends Component {
             }
             this.viewer.dataSources.add(this.satelliteSource);
 
+        }
+    }
+
+    colorSatellitesByDistance(shipPos, currentTime) {
+        const satellites = this.satelliteSource.entities.values.filter((entity) => entity.isAvailable(currentTime));
+        for (const satAvailable of satellites) {
+            const satPos = Cartographic.fromCartesian(satAvailable.position.getValue(currentTime));
+            // Remove height from satellite so it isn't considered in distance calculation
+            satPos.height = 0.0;
+            const ellipsoidLine = new EllipsoidGeodesic(shipPos, satPos);
+            const dist = ellipsoidLine.surfaceDistance;
+            if (dist / 1000 < 10018 ) {
+                satAvailable.point.color = Color.BLUE;
+            } else {
+                satAvailable.point.color = Color.RED;
+            }
         }
     }
 
