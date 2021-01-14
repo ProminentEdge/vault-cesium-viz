@@ -34,7 +34,7 @@ dayjs.extend(timezone);
 
 dayjs.tz.setDefault('America/New_York');
 
-const hits = require('./hits.json');
+const hits = require('./hits_new.csv');
 const csvData = require('./test-sat.csv');
 const shipCSV = require('./AISTest.csv');
 
@@ -58,14 +58,10 @@ class App extends Component {
             let maxDate = null;
             for (const csvRow of csvData) {
                 const d = dayjs(csvRow['dt'], 'YYYY-MM-DD HH:mm:ss', 'America/New_York').toDate();
-                if (minDate == null) {
-                    minDate = d.getTime();
-                    maxDate = d.getTime();
-                }
-                if (d.getTime() < minDate) {
+                if (minDate == null || d.getTime() < minDate) {
                     minDate = d.getTime();
                 }
-                if (d.getTime() > maxDate) {
+                if (maxDate == null || d.getTime() > maxDate) {
                     maxDate = d.getTime();
                 }
                 csvRow['dt'] = d;
@@ -151,10 +147,10 @@ class App extends Component {
 
 
             const shipHits = {};
-            for (const hit of hits.items) {
-                hit.time = dayjs(hit.basedatetime, 'YYYY-MM-DDTHH:mm:ss','America/New_York').toDate();
+            for (const hit of hits) {
+                hit.time = dayjs(Number(hit.millis70)).toDate();
                 if (shipHits.hasOwnProperty(hit.imo)) {
-                    const satObj = shipHits[hit['imo']];
+                    const satObj = shipHits[hit.imo];
                     satObj.points.push(hit);
                 } else {
                     shipHits[hit.imo] = {
@@ -178,13 +174,13 @@ class App extends Component {
                     const pointProps = new PropertyBag();
                     pointProps.addProperty('time', point.time);
                     pointProps.addProperty('satellite', point.satName);
-                    pointProps.addProperty('hit', point.isHit === 1);
-                    pointProps.addProperty('satCoords', [point.satLong, point.satLat]);
+                    pointProps.addProperty('hit', point.isHit === "1");
+                    pointProps.addProperty('satCoords', [Number(point.satLong), Number(point.satLat)]);
                     const shipPoint = new Entity({
-                        id: `shipPoint${index}`,
-                        position: new ConstantPositionProperty(Cartesian3.fromDegrees(point.lon, point.lat)),
+                        id: `shipPoint${shipObj.id}${index}`,
+                        position: new ConstantPositionProperty(Cartesian3.fromDegrees(Number(point.lon), Number(point.lat))),
                         point: new PointGraphics({
-                            color: (point.isHit === 1) ? Color.BLUE : Color.RED,
+                            color: (point.isHit === "1") ? Color.BLUE : Color.RED,
                             pixelSize: 10,
                         }),
                         properties: pointProps,
@@ -328,7 +324,7 @@ class App extends Component {
                 const tleProp = new CallbackProperty(function (time, result) {
                     const tle = this.tleCollection.findDataForIntervalContainingDate(time);
                     const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
-                    let posAndVel = propagate(satRec, JulianDate.toDate(time));
+                    let posAndVel = propagate(satRec, dayjs(JulianDate.toDate(time)).tz('America/New_York').toDate());
                     const gmst = gstime(JulianDate.toDate(time));
                     const geoPosVel = eciToGeodetic(posAndVel.position, gmst);
                     let longitude = geoPosVel.longitude,
