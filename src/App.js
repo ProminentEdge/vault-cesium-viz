@@ -37,7 +37,6 @@ dayjs.extend(timezone);
 dayjs.tz.setDefault('America/New_York');
 
 const hits = require('./hits_new.csv');
-const csvData = require('./test-sat.csv');
 const csvData2 = require('./test-sat2.csv');
 const shipCSV = require('./AISTest.csv');
 
