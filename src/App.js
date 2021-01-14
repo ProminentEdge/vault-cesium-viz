@@ -135,7 +135,8 @@ class App extends Component {
                 const shipAvailability = new TimeIntervalCollection([shipInterval]);
                 const shipEntity = new Entity({
                     availability: shipAvailability,
-                    id: `${ship.name}(${ship.id})`,
+                    id: `${ship.name} (${ship.id})`,
+                    name:`${ship.name} (${ship.id})`,
                     position: sampledPos,
                     point: new PointGraphics({
                         color: Color.ALICEBLUE,
@@ -204,6 +205,24 @@ class App extends Component {
                     if (this.shipSource.entities.contains(this.viewer.selectedEntity) && this.viewer.selectedEntity.isAvailable(currentTime)) {
                         const shipPos = Cartographic.fromCartesian(this.viewer.selectedEntity.position.getValue(currentTime));
                         this.colorSatellitesByDistance(shipPos, currentTime);
+
+                        this.resetShipColors();
+                        this.viewer.selectedEntity.point.color = Color.ORANGE;
+                        const satsInRange = this.collectInDistance(shipPos, currentTime, true);
+                        this.viewer.selectedEntity.description = this.buildShipDescription(this.viewer.selectedEntity, satsInRange);
+                        //TODO: Collect satellites in range, update selectedEntity description to include list of satellites
+                        this.lastUpdateTime = currentTime;
+                    }
+
+                    if (this.satelliteSource.entities.contains(this.viewer.selectedEntity) && this.viewer.selectedEntity.isAvailable(currentTime)) {
+                        const satPos = Cartographic.fromCartesian(this.viewer.selectedEntity.position.getValue(currentTime));
+                        this.colorShipsByDistance(satPos, currentTime);
+
+                        this.resetSatColors();
+                        this.viewer.selectedEntity.point.color = Color.ORANGE;
+                        const shipsInRange = this.collectInDistance(satPos, currentTime, false);
+                        this.viewer.selectedEntity.description = this.buildSatelliteDescription(this.viewer.selectedEntity, shipsInRange);
+                        //TODO: Collect satellites in range, update selectedEntity description to include list of satellites
                         this.lastUpdateTime = currentTime;
                     }
                 }
@@ -212,7 +231,11 @@ class App extends Component {
             const eventHandler = new ScreenSpaceEventHandler(this.viewer.scene.canvas);
             eventHandler.setInputAction((event) => {
                 const pick = this.viewer.scene.pick(event.position);
-                if (defined(pick) && defined(pick.id)) {
+
+                if (!defined(pick) || !defined(pick.id)) {
+                    //TODO: Clicked a location not containing an entity.
+                    this.resetEntityColors();
+                } else if (defined(pick) && defined(pick.id)) {
                     const pickedEntity = pick.id;
 
                     if (this.shipSource.entities.contains(pickedEntity) && pickedEntity.isAvailable(this.viewer.clock.currentTime)) {
@@ -220,6 +243,24 @@ class App extends Component {
                         const currTime = this.viewer.clock.currentTime;
                         const shipPos = Cartographic.fromCartesian(pickedEntity.position.getValue(currTime));
                         this.colorSatellitesByDistance(shipPos, currTime);
+
+                        const satsInRange = this.collectInDistance(shipPos, currTime, true);
+                        this.viewer.selectedEntity.description = this.buildShipDescription(this.viewer.selectedEntity, satsInRange);
+
+                        this.resetShipColors();
+                        this.viewer.selectedEntity.point.color = Color.ORANGE;
+                    }
+
+                    //If the user selects a satellite stop/pause the simulation?
+                    if (this.satelliteSource.entities.contains(pickedEntity) && pickedEntity.isAvailable(this.viewer.clock.currentTime)) {
+                        //TODO: Reverse the problem, upon selecting satellite, get ships in range and color by if this satellite can see them.
+                        const currTime = this.viewer.clock.currentTime;
+                        const satPos = Cartographic.fromCartesian(pickedEntity.position.getValue(currTime));
+                        this.colorShipsByDistance(satPos, currTime);
+                        const shipsInRange = this.collectInDistance(satPos, currTime, false);
+                        this.viewer.selectedEntity.description = this.buildSatelliteDescription(this.viewer.selectedEntity, shipsInRange);
+                        this.resetSatColors();
+                        this.viewer.selectedEntity.point.color = Color.ORANGE;
                     }
 
                     if (pickedEntity.id.startsWith('shipPoint')) {
@@ -308,38 +349,7 @@ class App extends Component {
                             data: sampledIntervalPos
                         });
                         pInts.push(positionSampleInterval);
-                    } /*else if (tle) {
-                        const startTime = JulianDate.fromDate(tle.dt);
-                        const endTime = JulianDate.now();
-                        const satRec = twoline2satrec(tle['tleline1'], tle['tleline2']);
-                        const timeInt = new TimeInterval({
-                            start: startTime,
-                            stop: endTime,
-                            data: satRec,
-                            isStartIncluded: true,
-                            isStopIncluded: false,
-                        });
-                        tInts.push(timeInt);
-
-                        const sampledIntervalPos = new SampledPositionProperty(ReferenceFrame.FIXED, 0);
-                        const secsRange = JulianDate.secondsDifference(endTime, startTime);
-                        const sampleCount = 20;
-                        const sampleInt = secsRange / sampleCount;
-                        const cartPos = this.getSatellitePosition(tle.dt, satRec);
-                        sampledIntervalPos.addSample(startTime, cartPos);
-                        for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
-                            const sampleTime = JulianDate.addSeconds(startTime, sampleInt * sampleIndex, new JulianDate());
-                            const samplePos = this.getSatellitePosition(JulianDate.toDate(sampleTime), satRec);
-                            sampledIntervalPos.addSample(sampleTime, samplePos);
-                        }
-                        const positionSampleInterval = new TimeInterval({
-                            start: startTime,
-                            stop: endTime,
-                            isStartIncluded: true,
-                            data: sampledIntervalPos
-                        });
-                        pInts.push(positionSampleInterval);
-                    }*/
+                    }
                 }
                 satObj.tleCollection = new TimeIntervalCollection(tInts);
                 const propBag = new PropertyBag();
@@ -356,20 +366,10 @@ class App extends Component {
                 }, false);
                 tleProp['positionCollection'] = new TimeIntervalCollection(pInts);
                 tleProp['tleCollection'] = satObj.tleCollection;
-                /*const cProp = new CallbackProperty(function (time, result)  {
-                    if (this.lastSampledTime == null || JulianDate.secondsDifference(time, this.lastSampledTime) > 1) {
-                        const sampledPosProp = this.positionCollection.findDataForIntervalContainingDate(time);
-                        if (sampledPosProp) {
-                            sampledPosProp.getValue(time, result);
-                        }
-                        this.lastSampledTime = time;
-                    }
-                    return result;
-                }, false);
-                cProp['positionCollection'] = new TimeIntervalCollection(pInts);
-                cProp['tleCollection'] = satObj.tleCollection;*/
+
                 const satEnt = new Entity({
                     id: `Satellite: ${satObj.satellite}`,
+                    name: `Satellite: ${satObj.satellite}`,
                     availability: satObj.tleCollection,
                     properties: propBag,
                     point: new PointGraphics({
@@ -385,18 +385,102 @@ class App extends Component {
         }
     }
 
+    buildSatelliteDescription(satellite, shipsInRange) {
+        let shipNames = shipsInRange.map((shipEntity) => `<tr><td style="text-align: center; vertical-align: middle;">${shipEntity.name}</td></tr>`);
+        if (shipNames.length === 0) {
+            shipNames = [`<tr><td style="text-align: center; vertical-align: middle;">No ships found in range of ${satellite.name}.</td></tr>`];
+        }
+        return `<div>
+                <table>
+                <th>Ships in Range</th>
+                ${shipNames.join('')}
+                </table>
+                </div>`;
+    }
+
+    buildShipDescription(ship, satsInRange) {
+        let satNames = satsInRange.map((satEntity) => `<tr><td style="text-align: center; vertical-align: middle;">${satEntity.name}</td></tr>`);
+        if (satNames.length === 0) {
+            satNames = [`<tr><td style="text-align: center; vertical-align: middle;">No satellites found in range of ${ship.name}.</td></tr>`];
+        }
+        return `<div>
+                <table>
+                <th>Satellites in Range</th>
+                ${satNames.join('')}
+                </table>
+                </div>`;
+    }
+
+    resetEntityColors() {
+        this.resetShipColors();
+        this.resetSatColors();
+    }
+
+    resetShipColors() {
+        this.shipSource.entities.values.forEach((ship) => ship.point.color = Color.WHITE);
+    }
+
+    resetSatColors() {
+        this.satelliteSource.entities.values.forEach((ship) => ship.point.color = Color.YELLOW);
+    }
+
+    collectInDistance(position, currentTime, satellites = true ) {
+        let source = this.satelliteSource;
+        if (satellites === false) {
+            source = this.shipSource;
+        }
+        const availableEnts = source.entities.values.filter((entity) => entity.isAvailable(currentTime));
+        const inRange = [];
+        for (const availableEnt of availableEnts) {
+            try {
+                const entPos = Cartographic.fromCartesian(availableEnt.position.getValue(currentTime));
+
+                const ellipsoidLine = new EllipsoidGeodesic(entPos, position);
+                const dist = ellipsoidLine.surfaceDistance;
+                if (dist / 1000 < 10018) {
+                    inRange.push(availableEnt);
+                }
+            } catch (e) { }
+        }
+        return inRange;
+    }
+
+    colorShipsByDistance(satPos, currentTime) {
+        const ships = this.shipSource.entities.values.filter((entity) => entity.isAvailable(currentTime));
+        for (const shipAvailable of ships) {
+            try {
+                const shipPos = Cartographic.fromCartesian(shipAvailable.position.getValue(currentTime));
+                // Remove height from satellite so it isn't considered in distance calculation
+                satPos.height = 0.0;
+                const ellipsoidLine = new EllipsoidGeodesic(shipPos, satPos);
+                const dist = ellipsoidLine.surfaceDistance;
+                if (dist / 1000 < 10018) {
+                    shipAvailable.point.color = Color.BLUE;
+                } else {
+                    shipAvailable.point.color = Color.RED;
+                }
+            } catch (e) {
+                shipAvailable.point.color = Color.WHITE;
+            }
+        }
+    }
+
     colorSatellitesByDistance(shipPos, currentTime) {
         const satellites = this.satelliteSource.entities.values.filter((entity) => entity.isAvailable(currentTime));
         for (const satAvailable of satellites) {
-            const satPos = Cartographic.fromCartesian(satAvailable.position.getValue(currentTime));
-            // Remove height from satellite so it isn't considered in distance calculation
-            satPos.height = 0.0;
-            const ellipsoidLine = new EllipsoidGeodesic(shipPos, satPos);
-            const dist = ellipsoidLine.surfaceDistance;
-            if (dist / 1000 < 10018 ) {
-                satAvailable.point.color = Color.BLUE;
-            } else {
-                satAvailable.point.color = Color.RED;
+            try {
+                const satPos = Cartographic.fromCartesian(satAvailable.position.getValue(currentTime));
+                // Remove height from satellite so it isn't considered in distance calculation
+                satPos.height = 0.0;
+                const ellipsoidLine = new EllipsoidGeodesic(shipPos, satPos);
+                const dist = ellipsoidLine.surfaceDistance;
+                if (dist / 1000 < 10018) {
+                    satAvailable.point.color = Color.BLUE;
+                } else {
+                    satAvailable.point.color = Color.RED;
+                }
+            } catch (e) {
+                satAvailable.point.color = Color.YELLOW;
             }
         }
     }
