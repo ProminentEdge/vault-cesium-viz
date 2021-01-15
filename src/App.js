@@ -25,7 +25,8 @@ import {
     ScreenSpaceEventType,
     defined,
     EllipsoidGeodesic,
-    Cartographic
+    Cartographic,
+    DistanceDisplayCondition
 } from 'cesium'
 import { sgp4, twoline2satrec, gstime, propagate, eciToGeodetic, eciToEcf } from 'satellite.js';
 const dayjs = require('dayjs');
@@ -139,13 +140,14 @@ class App extends Component {
                     position: sampledPos,
                     point: new PointGraphics({
                         color: Color.ALICEBLUE,
-                        pixelSize: 12,
+                        pixelSize: 8,
                     }),
                     path: new PathGraphics({
                         material: Color.BEIGE,
                         width: 3,
                         leadTime: 3600,
                         trailTime: 3600,
+                        distanceDisplayCondition: new DistanceDisplayCondition(0.0, 900000 * 4),
                     })
                 });
                 this.shipSource.entities.add(shipEntity);
@@ -167,6 +169,7 @@ class App extends Component {
                 }
             }
 
+            /*
             this.hitSource = new CustomDataSource('validationSource');
             const shipDatasource = new CustomDataSource('ships');
             for (const shipKey of Object.keys(shipHits)) {
@@ -185,6 +188,7 @@ class App extends Component {
                     pointProps.addProperty('satCoords', [Number(point.satLong), Number(point.satLat)]);
                     const shipPoint = new Entity({
                         id: `shipPoint${shipObj.id}${index}`,
+                        name: `Hit algorithm result: ${point.}`
                         position: new ConstantPositionProperty(Cartesian3.fromDegrees(Number(point.lon), Number(point.lat))),
                         point: new PointGraphics({
                             color: (point.isHit === "1") ? Color.BLUE : Color.RED,
@@ -198,9 +202,10 @@ class App extends Component {
             }
             this.viewer.dataSources.add(shipDatasource);
             this.viewer.dataSources.add(this.hitSource);
+            */
 
             this.viewer.scene.preUpdate.addEventListener((scene, currentTime) => {
-                if (defined(this.viewer.selectedEntity) && (this.lastUpdateTime == null || JulianDate.secondsDifference(currentTime, this.lastUpdateTime) > 1)) {
+                if (defined(this.viewer.selectedEntity) && (this.lastUpdateTime == null || Math.abs(JulianDate.secondsDifference(currentTime, this.lastUpdateTime)) > 1)) {
                     if (this.shipSource.entities.contains(this.viewer.selectedEntity) && this.viewer.selectedEntity.isAvailable(currentTime)) {
                         const shipPos = Cartographic.fromCartesian(this.viewer.selectedEntity.position.getValue(currentTime));
                         this.colorSatellitesByDistance(shipPos, currentTime);
@@ -262,6 +267,7 @@ class App extends Component {
                         this.viewer.selectedEntity.point.color = Color.ORANGE;
                     }
 
+                    /*
                     if (pickedEntity.id.startsWith('shipPoint')) {
                         //Move viewer time to this point in time to view satellite
                         this.viewer.clock.currentTime = JulianDate.fromDate(pickedEntity.properties.time.getValue());
@@ -291,6 +297,7 @@ class App extends Component {
                             }
                         }
                     }
+                    */
                 } else {
                     this.revertSatelliteColors();
                 }
