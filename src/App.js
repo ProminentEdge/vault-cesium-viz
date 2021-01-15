@@ -37,9 +37,8 @@ dayjs.extend(timezone);
 
 dayjs.tz.setDefault('America/New_York');
 
-const hits = require('./hits_new.csv');
-const csvData2 = require('./test-sat2.csv');
-const shipCSV = require('./AISTest.csv');
+const csvData2 = require('./SatelliteData.csv');
+const shipCSV = require('./AISData.csv');
 
 
 class App extends Component {
@@ -163,7 +162,7 @@ class App extends Component {
             }
             this.viewer.dataSources.add(this.shipSource);
 
-
+            /*
             const shipHits = {};
             for (const hit of hits) {
                 hit.time = dayjs(Number(hit.millis70)).toDate();
@@ -178,7 +177,7 @@ class App extends Component {
                 }
             }
 
-            /*
+
             this.hitSource = new CustomDataSource('validationSource');
             const shipDatasource = new CustomDataSource('ships');
             for (const shipKey of Object.keys(shipHits)) {
