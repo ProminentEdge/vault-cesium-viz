@@ -1,70 +1,25 @@
-# Getting Started with Create React App
+# VAULT Cesium Visualization
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+The purpose of this visualization is to get a better understanding of what satellites have coverage of ships at a given 
+time over their voyage(s).
 
-## Available Scripts
+![overview screenshot](./screenshots/overview.png)
 
-In the project directory, you can run:
+The image above depicts the view of the application upon running for the first time.
+The yellow points around the earth represent the positions of satellites orbiting the earth at the specified time in
+the cesium viewer, the simulation time is shown in the bottom left of the image.
 
-### `npm start`
+The white point(s) on the earth represents the position of ship at the given simulation time.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+The user has the ability to select satellites or ships in the application. 
+Upon selecting a satellite a popup will appear giving more information about the satellite, and will display
+a list of ships that the satellite has coverage of at the time.
+Ships will also be colored Blue/Red based on if the selected satellite has coverage of the ship at that time (Shown in 
+the image below).
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+![satellite click image](./screenshots/sat_click.png)
 
-### `npm test`
+Selecting a ship produces similar behavior and information, but from the perspective of the ship (Shown in the image 
+below).
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+![ship click image](./screenshots/ship_click.png)

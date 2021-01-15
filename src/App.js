@@ -86,6 +86,7 @@ class App extends Component {
             const shipData = {};
             for (const shipRow of shipCSV) {
                 shipRow.time = dayjs(shipRow.basedatetime, 'YYYY-MM-DDTHH:mm:ss', 'America/New_York').toDate();
+                shipRow.imo = shipRow.imo.replace('IMO', '');
                 if (shipData.hasOwnProperty(shipRow.imo)) {
                     const shipObj = shipData[shipRow.imo];
                     shipObj.points.push(shipRow);
@@ -93,6 +94,9 @@ class App extends Component {
                     shipData[shipRow.imo] = {
                         id: shipRow.imo,
                         name: shipRow.vesselname,
+                        mmsi: shipRow.mmsi,
+                        callSign: shipRow.callsign,
+                        vesselType: shipRow.vesseltype,
                         points: [],
                     };
                 }
@@ -103,7 +107,7 @@ class App extends Component {
             this.satelliteSource = new CustomDataSource('satellites');
             for (const key of Object.keys(shipData)) {
                 const ship = shipData[key];
-                if (ship.points.length < 2) {
+                if (ship.points.length < 2 || ship.name === "" || ship.id === "") {
                     //Ignore ships that don't have point data.
                     continue;
                 }
@@ -133,10 +137,14 @@ class App extends Component {
                     isStopIncluded: true,
                 });
                 const shipAvailability = new TimeIntervalCollection([shipInterval]);
+                const shipProps = new PropertyBag();
+                shipProps.addProperty('mmsi', ship.mmsi);
+                shipProps.addProperty('callSign', ship.callSign);
+                shipProps.addProperty('vesselType', ship.vesselType);
                 const shipEntity = new Entity({
                     availability: shipAvailability,
                     id: `${ship.name} (${ship.id})`,
-                    name:`${ship.name} (${ship.id})`,
+                    name:`${ship.name} (IMO: ${ship.id})`,
                     position: sampledPos,
                     point: new PointGraphics({
                         color: Color.ALICEBLUE,
@@ -148,7 +156,8 @@ class App extends Component {
                         leadTime: 3600,
                         trailTime: 3600,
                         distanceDisplayCondition: new DistanceDisplayCondition(0.0, 900000 * 4),
-                    })
+                    }),
+                    properties: shipProps,
                 });
                 this.shipSource.entities.add(shipEntity);
             }
@@ -410,6 +419,8 @@ class App extends Component {
             satNames = [`<tr><td style="text-align: center; vertical-align: middle;">No satellites found in range of ${ship.name}.</td></tr>`];
         }
         return `<div>
+                <div>MMSI: ${ship.properties['mmsi']}</div>
+                <div>Vessel Type: ${ship.properties.vesselType}</div>
                 <table>
                 <th>Satellites in Range</th>
                 ${satNames.join('')}
